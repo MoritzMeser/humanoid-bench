@@ -8,13 +8,33 @@ class H1:
         """Returns projection from z-axes of torso to the z-axes of world."""
         return self._env.named.data.xmat["torso_link", "zz"]
 
+    def pelvis_upright(self):
+        """Returns projection from z-axes of torso to the z-axes of world."""
+        return self._env.named.data.xmat["pelvis", "zz"]
+
+    def right_foot_upright(self):
+        """Returns projection from z-axes of torso to the z-axes of world."""
+        return self._env.named.data.xmat["right_ankle_link", "zz"]
+
+    def left_foot_upright(self):
+        """Returns projection from z-axes of torso to the z-axes of world."""
+        return self._env.named.data.xmat["left_ankle_link", "zz"]
+
     def head_height(self):
         """Returns the height of the torso."""
         return self._env.named.data.site_xpos["head", "z"]
 
+    def left_foot_position(self):
+        """Returns the position of the left foot."""
+        return self._env.named.data.site_xpos["left_foot"]
+
     def left_foot_height(self):
         """Returns the height of the left foot."""
         return self._env.named.data.site_xpos["left_foot", "z"]
+
+    def right_foot_position(self):
+        """Returns the position of the right foot."""
+        return self._env.named.data.site_xpos["right_foot"]
 
     def right_foot_height(self):
         """Returns the height of the right foot."""
@@ -39,11 +59,11 @@ class H1:
     def joint_angles(self):
         """Returns the state without global orientation or position."""
         # Skip the 7 DoFs of the free root joint.
-        return self._env.data.qpos[7 : self.dof].copy()
+        return self._env.data.qpos[7: self.dof].copy()
 
     def joint_velocities(self):
         """Returns the joint velocities."""
-        return self._env.data.qvel[6 : self.dof-1].copy()
+        return self._env.data.qvel[6: self.dof - 1].copy()
 
     def control(self):
         """Returns a copy of the control signals for the actuators."""
@@ -75,15 +95,18 @@ class H1:
 class H1Hand(H1):
     dof = 76
 
+
 class H1SimpleHand(H1):
-    dof = 52    
+    dof = 52
+
 
 class H1Touch(H1):
     dof = 76
+
 
 class H1Strong(H1):
     dof = 76
 
 
-class G1 (H1):
+class G1(H1):
     dof = 44

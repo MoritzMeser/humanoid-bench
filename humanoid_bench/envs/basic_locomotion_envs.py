@@ -8,7 +8,6 @@ from dm_control.utils import rewards
 
 from humanoid_bench.tasks import Task
 
-
 # Height of head above which stand reward is 1.
 _STAND_HEIGHT = 1.65
 _CRAWL_HEIGHT = 0.8
@@ -43,55 +42,125 @@ class Walk(Task):
             low=-np.inf, high=np.inf, shape=(self.robot.dof * 2 - 1,), dtype=np.float64
         )
 
+    def get_reward_new(self):
+        reward = 0
+
+        # stand height
+        stand_height = self.robot.head_height()
+        reward += rewards.tolerance(stand_height, bounds=(_STAND_HEIGHT, float("inf")), margin=_STAND_HEIGHT / 4)
+
+        # pelvis / feet
+        foot_left_height = self.robot.left_foot_height()
+        foot_right_height = self.robot.right_foot_height()
+        com = self.robot.center_of_mass_position()[2]
+        pelvis_feet = com - (foot_left_height + foot_right_height) / 2
+        reward += rewards.tolerance(pelvis_feet, bounds=(0.8, float("inf")))
+
+        # balance
+        com_pos = self.robot.center_of_mass_position()
+        com_vel = self.robot.center_of_mass_velocity()
+        capture_point = com_pos + 0.3 * com_vel
+
+        foot_right = self.robot.right_foot_position()
+        foot_left = self.robot.left_foot_position()
+        axis = foot_right - foot_left
+        axis[2] = 0
+        axis /= np.linalg.norm(axis)
+        length = 0.5 * np.linalg.norm(axis) - 0.05
+
+        center = (foot_right + foot_left) / 2
+        vector = capture_point - center
+
+        t = np.dot(vector, axis)
+        t = np.clip(t, -length, length)
+        vec = axis * t
+        pcp = center + vec
+        pcp[2] = 0
+
+        capture_point = capture_point[:2] - pcp[:2]
+        capture_point = np.linalg.norm(capture_point)
+        reward += rewards.tolerance(capture_point, bounds=(0, 0.0), margin=0.5)
+
+        # torso upright
+        upright = self.robot.torso_upright()
+        reward += rewards.tolerance(upright, bounds=(0.9, float("inf")), margin=1.9)
+
+        # pelvis upright
+        pelvis_upright = self.robot.pelvis_upright()
+        reward += rewards.tolerance(pelvis_upright, bounds=(0.9, float("inf")), margin=1.9)
+
+        # foot upright
+        foot_upright = self.robot.right_foot_upright() + self.robot.left_foot_upright()
+        foot_upright /= 2
+        reward += rewards.tolerance(foot_upright, bounds=(0.9, float("inf")), margin=1.9)
+
+        # posture
+        robot_posture = self.robot.joint_angles()
+        robot_posture = np.sum(robot_posture ** 2)
+        reward += rewards.tolerance(robot_posture, bounds=(-0.1, 0.1), margin=1)
+
+        # walking speed
+        body_velocity = self.robot.body_velocity()[0]
+        velocity = np.linalg.norm(body_velocity)
+        reward += rewards.tolerance(velocity, bounds=(self._move_speed, float("inf")), margin=self._move_speed)
+
+        # control
+        control = self.robot.control()
+        control = np.sum(control ** 2)
+        reward += rewards.tolerance(control, margin=10)
+
+        return reward/9.0
+
     def get_reward(self):
-        standing = rewards.tolerance(
-            self.robot.head_height(),
-            bounds=(_STAND_HEIGHT, float("inf")),
-            margin=_STAND_HEIGHT / 4,
-        )
-        upright = rewards.tolerance(
-            self.robot.torso_upright(),
-            bounds=(0.9, float("inf")),
-            sigmoid="linear",
-            margin=1.9,
-            value_at_margin=0,
-        )
-        stand_reward = standing * upright
-        small_control = rewards.tolerance(
-            self.robot.actuator_forces(),
-            margin=10,
-            value_at_margin=0,
-            sigmoid="quadratic",
-        ).mean()
-        small_control = (4 + small_control) / 5
-        if self._move_speed == 0:
-            horizontal_velocity = self.robot.center_of_mass_velocity()[[0, 1]]
-            dont_move = rewards.tolerance(horizontal_velocity, margin=2).mean()
-            return small_control * stand_reward * dont_move, {
-                "small_control": small_control,
-                "stand_reward": stand_reward,
-                "dont_move": dont_move,
-                "standing": standing,
-                "upright": upright,
-            }
-        else:
-            com_velocity = self.robot.center_of_mass_velocity()[0]
-            move = rewards.tolerance(
-                com_velocity,
-                bounds=(self._move_speed, float("inf")),
-                margin=self._move_speed,
-                value_at_margin=0,
-                sigmoid="linear",
-            )
-            move = (5 * move + 1) / 6
-            reward = small_control * stand_reward * move
-            return reward, {
-                "stand_reward": stand_reward,
-                "small_control": small_control,
-                "move": move,
-                "standing": standing,
-                "upright": upright,
-            }
+        return self.get_reward_new(), {}
+        # standing = rewards.tolerance(
+        #     self.robot.head_height(),
+        #     bounds=(_STAND_HEIGHT, float("inf")),
+        #     margin=_STAND_HEIGHT / 4,
+        # )
+        # upright = rewards.tolerance(
+        #     self.robot.torso_upright(),
+        #     bounds=(0.9, float("inf")),
+        #     sigmoid="linear",
+        #     margin=1.9,
+        #     value_at_margin=0,
+        # )
+        # stand_reward = standing * upright
+        # small_control = rewards.tolerance(
+        #     self.robot.actuator_forces(),
+        #     margin=10,
+        #     value_at_margin=0,
+        #     sigmoid="quadratic",
+        # ).mean()
+        # small_control = (4 + small_control) / 5
+        # if self._move_speed == 0:
+        #     horizontal_velocity = self.robot.center_of_mass_velocity()[[0, 1]]
+        #     dont_move = rewards.tolerance(horizontal_velocity, margin=2).mean()
+        #     return small_control * stand_reward * dont_move, {
+        #         "small_control": small_control,
+        #         "stand_reward": stand_reward,
+        #         "dont_move": dont_move,
+        #         "standing": standing,
+        #         "upright": upright,
+        #     }
+        # else:
+        #     com_velocity = self.robot.center_of_mass_velocity()[0]
+        #     move = rewards.tolerance(
+        #         com_velocity,
+        #         bounds=(self._move_speed, float("inf")),
+        #         margin=self._move_speed,
+        #         value_at_margin=0,
+        #         sigmoid="linear",
+        #     )
+        #     move = (5 * move + 1) / 6
+        #     reward = small_control * stand_reward * move
+        #     return reward, {
+        #         "stand_reward": stand_reward,
+        #         "small_control": small_control,
+        #         "move": move,
+        #         "standing": standing,
+        #         "upright": upright,
+        #     }
 
     def get_terminated(self):
         return self._env.data.qpos[2] < 0.2, {}
@@ -152,11 +221,11 @@ class Crawl(Walk):
         )
 
         reward = (
-            0.1 * small_control
-            + 0.25 * min(crawling, crawling_head)
-            + 0.4 * move
-            + 0.25 * reward_xquat
-        ) * in_tunnel
+                         0.1 * small_control
+                         + 0.25 * min(crawling, crawling_head)
+                         + 0.4 * move
+                         + 0.25 * reward_xquat
+                 ) * in_tunnel
         return reward, {
             "crawling": crawling,
             "crawling_head": crawling_head,
@@ -272,10 +341,10 @@ class Hurdle(Walk):
 
         for pair in self._env.data.contact.geom:
             if any(
-                [
-                    wall_collision_id in pair
-                    for wall_collision_id in self.wall_collision_ids
-                ]
+                    [
+                        wall_collision_id in pair
+                        for wall_collision_id in self.wall_collision_ids
+                    ]
             ):  # for no hand. if for hand, > 155
                 wall_collision_discount = 0.1
                 # print(pair)
