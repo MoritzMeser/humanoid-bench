@@ -98,9 +98,11 @@ class Walk(Task):
         reward += pelvis_upright_reward
 
         # foot upright
-        foot_upright = self.robot.right_foot_upright() + self.robot.left_foot_upright()
-        foot_upright /= 2
-        foot_upright_reward = rewards.tolerance(foot_upright, bounds=(0.9, float("inf")), margin=1.9)
+        left_foot_upright = self.robot.left_foot_upright()
+        left_foot_upright_reward = rewards.tolerance(left_foot_upright, bounds=(0.9, float("inf")), margin=1.9)
+        right_foot_upright = self.robot.right_foot_upright()
+        right_foot_upright_reward = rewards.tolerance(right_foot_upright, bounds=(0.9, float("inf")), margin=1.9)
+        foot_upright_reward = (left_foot_upright_reward + right_foot_upright_reward) / 2
         reward += foot_upright_reward
 
         # posture
@@ -111,11 +113,15 @@ class Walk(Task):
 
         # walking speed
         body_velocity = self.robot.body_velocity()[0]
-        # check body velocity is a scalar value
-        assert isinstance(body_velocity, float)
-        walking_reward = rewards.tolerance(body_velocity, bounds=(self._move_speed, float("inf")),
+        walking_reward = rewards.tolerance(body_velocity,
+                                           bounds=(self._move_speed, float("inf")),
                                            margin=self._move_speed)
         reward += walking_reward
+
+        # face direction
+        facing_direction = self.robot.facing_direction()
+        facing_direction_reward = rewards.tolerance(facing_direction, bounds=(0.9, float("inf")), margin=1.9)
+        reward += facing_direction_reward
 
         # control
         control = self.robot.control()
@@ -123,7 +129,7 @@ class Walk(Task):
         control_reward = rewards.tolerance(control, margin=10)
         reward += control_reward
 
-        reward /= 9.0
+        reward /= 10.0
         return reward, {
             "stand_height_reward": stand_height_reward,
             "pelvis_feet_reward": pelvis_feet_reward,
@@ -133,6 +139,7 @@ class Walk(Task):
             "foot_upright_reward": foot_upright_reward,
             "robot_posture_reward": robot_posture_reward,
             "walking_reward": walking_reward,
+            "facing_direction_reward": facing_direction_reward,
             "control_reward": control_reward}
 
     def original_reward(self):

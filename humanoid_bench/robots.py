@@ -91,6 +91,9 @@ class H1:
     def right_hand_orientation(self):
         return self._env.named.data.site_xmat["right_hand"]
 
+    def facing_direction(self):
+        return self._env.named.data.xmat["torso_link", "xx"]
+
 
 class H1Hand(H1):
     dof = 76
