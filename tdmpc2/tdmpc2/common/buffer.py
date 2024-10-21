@@ -42,10 +42,14 @@ class Buffer:
         """
         Reserve a buffer with the given storage.
         """
+        if sys.platform == "darwin":
+            pin_memory = False
+        else:
+            pin_memory = True
         return ReplayBuffer(
             storage=storage,
             sampler=self._sampler,
-            pin_memory=True,
+            pin_memory=pin_memory,
             prefetch=1,
             batch_size=self._batch_size,
         )

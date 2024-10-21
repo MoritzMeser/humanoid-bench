@@ -1,6 +1,9 @@
 defaults:
     - override hydra/launcher: submitit_local
 
+# extended evaluation
+log_everything: false
+
 # environment
 task: dog-run
 obs: state

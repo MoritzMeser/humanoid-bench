@@ -27,8 +27,12 @@ class OnlineTrainer(Trainer):
     def eval(self):
         """Evaluate a TD-MPC2 agent."""
         ep_rewards, ep_successes = [], []
+        if self.cfg.log_everything:
+            reward_terms = None
         for i in range(self.cfg.eval_episodes):
             obs, done, ep_reward, t = self.env.reset()[0], False, 0, 0
+            if self.cfg.log_everything:
+                curr_reward_terms = None
             if self.cfg.save_video:
                 self.logger.video.init(self.env, enabled=(i == 0))
             while not done:
@@ -36,14 +40,31 @@ class OnlineTrainer(Trainer):
                 obs, reward, done, truncated, info = self.env.step(action)
                 done = done or truncated
                 ep_reward += reward
+                if self.cfg.log_everything:
+                    # check if reward_terms is an empty list
+                    if curr_reward_terms is None:
+                        curr_reward_terms = {key: 0 for key in info}
+                    for key in info:
+                        curr_reward_terms[key] += info[key]
                 t += 1
                 if self.cfg.save_video:
                     self.logger.video.record(self.env)
             ep_rewards.append(ep_reward)
             ep_successes.append(info["success"])
+            if self.cfg.log_everything:
+                if reward_terms is None:
+                    reward_terms = {key: [] for key in curr_reward_terms}
+                for key in curr_reward_terms:
+                    reward_terms[key].append(info[key])
             if self.cfg.save_video:
                 # self.logger.video.save(self._step)
                 self.logger.video.save(self._step, key='results/video')
+        if self.cfg.log_everything:
+            return dict(
+                episode_reward=np.nanmean(ep_rewards),
+                episode_success=np.nanmean(ep_successes),
+                **{key: np.nanmean(reward_terms[key]) for key in reward_terms},
+            )
         return dict(
             episode_reward=np.nanmean(ep_rewards),
             episode_success=np.nanmean(ep_successes),
@@ -98,8 +119,8 @@ class OnlineTrainer(Trainer):
                                        'episode_length': len(self._tds[1:]),
                                        'success': train_metrics['episode_success'],
                                        'success_subtasks': info['success_subtasks'],
-                                       'step': self._step,}
-                
+                                       'step': self._step, }
+
                     self.logger.log(train_metrics, "train")
                     self.logger.log(results_metrics, "results")
                     self._ep_idx = self.buffer.add(torch.cat(self._tds))
