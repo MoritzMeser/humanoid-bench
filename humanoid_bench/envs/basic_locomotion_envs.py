@@ -112,8 +112,9 @@ class Walk(Task):
         reward += robot_posture_reward
 
         # walking speed
-        body_velocity = self.robot.body_velocity()[0]
-        walking_reward = rewards.tolerance(body_velocity,
+        com_velocity = self.robot.center_of_mass_velocity()[0]
+        # body_velocity = self.robot.body_velocity()[0]
+        walking_reward = rewards.tolerance(com_velocity,
                                            bounds=(self._move_speed, float("inf")),
                                            margin=self._move_speed)
         reward += walking_reward
